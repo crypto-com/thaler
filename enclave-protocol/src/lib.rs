@@ -223,7 +223,7 @@ impl Decode for EncryptionRequest {
     fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
         let size = input
             .remaining_len()?
-            .ok_or_else(|| "Unable to calculate size of input")?;
+            .ok_or("Unable to calculate size of input")?;
 
         if size > ENCRYPTION_REQUEST_SIZE {
             return Err("Request too large".into());

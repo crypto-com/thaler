@@ -344,7 +344,7 @@ pub trait WalletClient: Send + Sync {
         return_address: ExtendedAddr,
     ) -> Result<(TxAux, Vec<TxoPointer>, Coin)>;
 
-    /// Broadcasts a transaction to Crypto.com Chain
+    /// Broadcasts a transaction to Thaler Experimental Network
     fn broadcast_transaction(&self, tx_aux: &TxAux) -> Result<BroadcastTxResponse>;
 
     /// When receiver's view key not included in the transaction, the receiver can't collect the outputs.

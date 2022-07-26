@@ -1,5 +1,5 @@
 #![deny(missing_docs, unsafe_code, unstable_features)]
-//! # Crypto.com Chain Client
+//! # Thaler Experimental Network Client
 //!
 //! This crate provides `WalletClient` trait which is responsible for interacting with transaction index and provide
 //! following functionalities on per-wallet basis:

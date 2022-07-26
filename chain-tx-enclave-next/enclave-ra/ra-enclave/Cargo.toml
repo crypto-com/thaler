@@ -12,10 +12,11 @@ aes = "0.4"
 chrono = "0.4"
 cmac = "0.3"
 crypto-mac = { version = "0.8", features = ["std"] }
+hex = "0.4"
 log = "0.4"
 rcgen = "0.8"
 ring = "0.16.15"
-rustls = "0.18"
+rustls = "0.19"
 serde_json = "1.0"
 sgx-isa = { version = "0.3", features = ["sgxstd"] }
 sha2 = "0.9"

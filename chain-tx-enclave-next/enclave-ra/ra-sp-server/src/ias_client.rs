@@ -1,3 +1,4 @@
+use ra_common::AttestationReportBody;
 ///! FIXME: dead_code should disappear once this is started up in chain-abci / enclave
 ///! (pass SPID/ias_key to the enclave on the launch, but fixed URLs are at compile-time)
 use reqwest::blocking::Client;
@@ -81,8 +82,9 @@ impl IasClient {
     pub fn verify_attestation_evidence(
         &self,
         quote: &[u8],
+        ias_nonce: &str,
     ) -> Result<AttestationReport, IasClientError> {
-        let evidence = AttestationEvidence::from_quote(quote);
+        let evidence = AttestationEvidence::from_quote(quote, Some(ias_nonce.to_string()));
 
         let url = format!("{}{}", self.ias_base_uri, self.ias_report_path);
 
@@ -109,18 +111,25 @@ impl IasClient {
         // Parse attestation verification report body
         let body = response.bytes()?.to_vec();
 
-        Ok(AttestationReport {
-            body,
-            signature,
-            signing_cert,
-        })
+        // Validate nonce
+        let parsed_body: AttestationReportBody = serde_json::from_slice(&body)?;
+        let ret_nonce = parsed_body.nonce.ok_or(IasClientError::MissingNonce)?;
+        if ret_nonce == ias_nonce {
+            Ok(AttestationReport {
+                body,
+                signature,
+                signing_cert,
+            })
+        } else {
+            Err(IasClientError::InvalidNonce)
+        }
     }
 }
 
 fn extract_signing_certificate(response_headers: &HeaderMap) -> Result<Vec<u8>, IasClientError> {
     let urlencoded_signing_certificate = response_headers
         .get("X-IASReport-Signing-Certificate")
-        .ok_or_else(|| IasClientError::MissingSigningCertificate)?
+        .ok_or(IasClientError::MissingSigningCertificate)?
         .as_ref();
     let signing_certificate = percent_encoding::percent_decode(urlencoded_signing_certificate)
         .decode_utf8()
@@ -131,7 +140,7 @@ fn extract_signing_certificate(response_headers: &HeaderMap) -> Result<Vec<u8>, 
 fn extract_signature(response_headers: &HeaderMap) -> Result<Vec<u8>, IasClientError> {
     let encoded_signature = response_headers
         .get("X-IASReport-Signature")
-        .ok_or_else(|| IasClientError::MissingSignature)?;
+        .ok_or(IasClientError::MissingSignature)?;
     if encoded_signature.is_empty() {
         return Err(IasClientError::MissingSignature);
     }
@@ -152,6 +161,10 @@ pub enum IasClientError {
     MissingSignature,
     #[error("Missing signing certificate in attestation verification report")]
     MissingSigningCertificate,
+    #[error("Missing nonce in attestation verification report")]
+    MissingNonce,
+    #[error("Invalid nonce in attestation verification report")]
+    InvalidNonce,
     #[error("Signing certificate decode error")]
     SigningCertificateDecodeError(#[source] std::str::Utf8Error),
 }

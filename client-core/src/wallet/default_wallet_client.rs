@@ -1751,7 +1751,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             seckey.unsecure().to_vec(),
-            hex::decode("a2186c772bad48fc6acff4ccaa5d319153603089bd40db610b084b7eedd7d0b3")
+            hex::decode("2683346bb890dc5497b050e0c4b93f843ca75503fd5bba41787583351f79931e")
                 .unwrap()
         );
     }

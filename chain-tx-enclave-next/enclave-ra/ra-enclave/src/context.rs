@@ -100,7 +100,7 @@ impl EnclaveRaContext {
         // Get target info from SP server
         let target_info_bytes = self.sp_ra_client.get_target_info()?;
         let target_info = Targetinfo::try_copy_from(&target_info_bytes)
-            .ok_or_else(|| EnclaveRaContextError::InvalidTargetInfo)?;
+            .ok_or(EnclaveRaContextError::InvalidTargetInfo)?;
 
         // Generate enclave report
         let report = self.get_report(&target_info, public_key)?;
@@ -114,12 +114,13 @@ impl EnclaveRaContext {
 
         // Verify QE report
         let qe_report = Report::try_copy_from(&qe_report_bytes)
-            .ok_or_else(|| EnclaveRaContextError::InvalidQeReport)?;
+            .ok_or(EnclaveRaContextError::InvalidQeReport)?;
         verify_qe_report(&qe_report, &target_info, &quote, nonce)?;
 
         // Get attestation report from SP server
+        let ias_nonce = hex::encode(&get_random_nonce()?);
         self.sp_ra_client
-            .get_attestation_report(quote)
+            .get_attestation_report(quote, ias_nonce)
             .map_err(Into::into)
     }
 
@@ -153,7 +154,7 @@ impl EnclaveRaContext {
             certificate_params
                 .key_pair
                 .as_ref()
-                .ok_or_else(|| EnclaveRaContextError::MissingKeyPair)?
+                .ok_or(EnclaveRaContextError::MissingKeyPair)?
                 .serialize_der(),
         );
         let created = certificate_params.not_before;

@@ -5,7 +5,7 @@ use crate::message::MLSPlaintext;
 use crate::Codec;
 use ra_client::{CertVerifyResult, ENCLAVE_CERT_VERIFIER};
 
-/// FIXME: needs design/spec https://github.com/crypto-com/chain-docs/issues/141
+/// FIXME: needs design/spec https://github.com/crypto-com/thaler-docs/issues/141
 /// of possible errors
 #[derive(thiserror::Error, Debug)]
 pub enum NodeJoinError {
@@ -15,13 +15,13 @@ pub enum NodeJoinError {
     VerifyError(#[from] KeyPackageError),
 }
 
-/// FIXME: needs design/spec https://github.com/crypto-com/chain-docs/issues/141
+/// FIXME: needs design/spec https://github.com/crypto-com/thaler-docs/issues/141
 /// of what needs to be returned
 pub struct NodeJoinResult {
     pub info: CertVerifyResult,
 }
 
-/// FIXME: needs design/spec https://github.com/crypto-com/chain-docs/issues/141
+/// FIXME: needs design/spec https://github.com/crypto-com/thaler-docs/issues/141
 /// this may need to be passed in more arguments, e.g. groupcontext or whatever the chain-abci
 /// can maintain
 pub fn check_nodejoin<CS: CipherSuite>(

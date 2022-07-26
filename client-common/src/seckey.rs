@@ -45,8 +45,9 @@ pub fn parse_hex_enckey(s: &str) -> Result<SecKey> {
 }
 
 const GLOBAL_DATA_CONTEXT: &str =
-    "Crypto.com Chain Wallet 2020-03-30 16:59:10 global wallet data encryption";
-const SALT_CONTEXT: &str = "Crypto.com Chain Wallet 2020-03-30 16:59:10 salt from wallet name";
+    "Thaler Experimental Network Wallet 2020-10-19 16:59:10 global wallet data encryption";
+const SALT_CONTEXT: &str =
+    "Thaler Experimental Network Wallet 2020-10-19 16:59:10 salt from wallet name";
 
 /// derive encryption key from passphrase
 /// FIXME: derivation should derive multiple keys, e.g. for view/sync and spending operations

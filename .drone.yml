@@ -31,8 +31,8 @@ steps:
   pull: if-not-exists
   privileged: true
   volumes:
-  - name: sgx
-    path: /dev/sgx
+  - name: isgx
+    path: /dev/isgx
   environment:
     SPID:
       from_secret: SPID
@@ -52,8 +52,8 @@ steps:
   pull: if-not-exists
   privileged: true
   volumes:
-  - name: sgx
-    path: /dev/sgx
+  - name: isgx
+    path: /dev/isgx
   environment:
     SPID:
       from_secret: SPID
@@ -73,8 +73,8 @@ steps:
   pull: if-not-exists
   privileged: true
   volumes:
-  - name: sgx
-    path: /dev/sgx
+  - name: isgx
+    path: /dev/isgx
   environment:
     RUST_LOG: debug
   commands:
@@ -95,13 +95,13 @@ steps:
       - failure
 
 volumes:
-  - name: sgx
+  - name: isgx
     host:
-      path: /dev/sgx
+      path: /dev/isgx
 
 trigger:
   branch:
-  - master
+  - main
   - staging
   - trying
   event:
@@ -127,13 +127,13 @@ steps:
 
 trigger:
   branch:
-  - master
+  - main
   event:
   - push
       
 
 ---
 kind: signature
-hmac: cdaf463e399063ff58aeed14d5fe48b678ed77fd38d4a51482f8983a07e95c0a
+hmac: d60bc90fe363b4bb6070b40f21b9dfd8502acdcd5e8bc8c72d8e909710d79621
 
 ...

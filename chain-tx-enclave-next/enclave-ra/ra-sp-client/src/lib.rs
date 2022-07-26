@@ -13,11 +13,11 @@
 //!
 //! // Generate a enclave report using received target info
 //! let report = vec![];
-//!
-//! let quote_result = client.get_quote(report).unwrap();
+//! let nonce = [0; 16];
+//! let quote_result = client.get_quote(report, nonce).unwrap();
 //!
 //! // Verify the QE report in `quote_result`
-//! let attestation_report = client.get_attestation_report(quote_result.quote).unwrap();
+//! let attestation_report = client.get_attestation_report(quote_result.quote, nonce).unwrap();
 //! ```
 mod client;
 

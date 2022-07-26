@@ -1,4 +1,4 @@
-# Crypto.com Chain Client (client-common)
+# Thaler Experimental Network Client (client-common)
 
 This crate contains all the common types and utilities used by other `client-*` crates. These types and utilities fall
 under three major categories:

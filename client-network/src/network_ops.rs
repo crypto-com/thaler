@@ -1,4 +1,4 @@
-//! Network operations on Crypto.com Chain
+//! Network operations on Thaler Experimental Network
 mod default_network_ops_client;
 
 pub use self::default_network_ops_client::DefaultNetworkOpsClient;
@@ -15,7 +15,7 @@ use client_common::tendermint::types::{Genesis, StatusResponse};
 use client_common::{ErrorKind, Result, ResultExt, SecKey};
 use client_core::types::TransactionPending;
 
-/// Interface for performing network operations on Crypto.com Chain
+/// Interface for performing network operations on Thaler Experimental Network
 pub trait NetworkOpsClient: Send + Sync {
     /// calculate the deposit fee
     fn calculate_deposit_fee(&self) -> Result<Coin>;

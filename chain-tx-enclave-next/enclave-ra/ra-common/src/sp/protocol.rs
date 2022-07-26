@@ -10,7 +10,7 @@ pub enum Request {
     /// Generates a new quote from QE using AESM
     GetQuote { report: Vec<u8>, nonce: [u8; 16] },
     /// Generate attestation report using IAS
-    GetAttestationReport { quote: Vec<u8> },
+    GetAttestationReport { quote: Vec<u8>, ias_nonce: String },
 }
 
 /// Responses for request sent by enclave
