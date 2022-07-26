@@ -115,7 +115,7 @@ pub fn entry() -> std::io::Result<()> {
         let tve_uds = TcpStream::connect("tx-validation")?;
         let mut tve_stream = create_tls_server_stream(&context, tve_verifier, tve_uds, false)?;
 
-        /// FIXME: this should be generated using "MLS-Exporter": https://github.com/crypto-com/chain-docs/blob/master/docs/modules/tdbe.md#new-obfuscation-key
+        /// FIXME: this should be generated using "MLS-Exporter": https://github.com/crypto-com/thaler-docs/blob/master/docs/modules/tdbe.md#new-obfuscation-key
         const MOCK_KEY: [u8; 16] = mock_key!();
         tve_stream.write_all(&MOCK_KEY);
     }
@@ -203,7 +203,7 @@ fn fetch_remote_tdbe_connection_details(
     Ok(("".to_string(), "".to_string()))
 }
 
-// TODO: Get transaction IDs as mentioned in https://github.com/crypto-com/chain-docs/blob/master/docs/modules/tdbe.md#light-client
+// TODO: Get transaction IDs as mentioned in https://github.com/crypto-com/thaler-docs/blob/master/docs/modules/tdbe.md#light-client
 fn fetch_transaction_ids() -> (Vec<TxId>, u32) {
     Default::default()
 }

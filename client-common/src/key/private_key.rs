@@ -24,7 +24,7 @@ pub trait PrivateKeyAction: Sync + Send {
     fn public_key(&self) -> Result<PublicKey>;
 }
 
-/// Private key used in Crypto.com Chain
+/// Private key used in Thaler Experimental Network
 #[derive(Debug, PartialEq, Clone)]
 pub struct PrivateKey(SecretKey);
 

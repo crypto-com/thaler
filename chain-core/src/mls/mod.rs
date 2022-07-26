@@ -55,7 +55,7 @@ impl From<NackMsgTx> for TaggedTransaction {
 
 /// A wrapper type for payloads generated and exchanged
 /// by a part of "Transaction Data Bootstrapping Enclave" (TDBE)
-/// ref: https://github.com/crypto-com/chain-docs/blob/master/docs/modules/tdbe.md
+/// ref: https://github.com/crypto-com/thaler-docs/blob/master/docs/modules/tdbe.md
 /// TODO: currently, Vec<u8> payloads are assumed to be TLS encoded,
 /// but this may switch to SCALE
 #[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]

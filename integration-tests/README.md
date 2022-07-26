@@ -1,4 +1,4 @@
-# Crypto.com Chain Client Integration Tests Suite
+# Thaler Experimental Network Client Integration Tests Suite
 
 ## Environment Variables
 

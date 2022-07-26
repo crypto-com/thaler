@@ -840,7 +840,7 @@ pub enum ProgressReport {
     },
 }
 
-/// Structure for representing a block header on Crypto.com Chain,
+/// Structure for representing a block header on Thaler Experimental Network,
 /// already filtered for current wallet.
 #[derive(Debug)]
 pub(crate) struct FilteredBlock {

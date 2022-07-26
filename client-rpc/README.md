@@ -1,4 +1,4 @@
-# Crypto.com Chain Client JSON-RPC server (client-rpc)
+# Thaler Experimental Network Client JSON-RPC server (client-rpc)
 
 This is the client JSON-RPC server
 

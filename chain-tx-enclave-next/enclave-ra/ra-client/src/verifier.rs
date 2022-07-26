@@ -68,7 +68,7 @@ fn get_end_entity_certificate(
 ) -> Result<EndEntityCert, EnclaveCertVerifierError> {
     let signing_cert = certificate_chain
         .first()
-        .ok_or_else(|| EnclaveCertVerifierError::MissingAttestationReportSigningCertificate)?;
+        .ok_or(EnclaveCertVerifierError::MissingAttestationReportSigningCertificate)?;
     EndEntityCert::from(&signing_cert.0)
         .map_err(|_| EnclaveCertVerifierError::AttestationReportSigningCertificateParsingError)
 }
@@ -254,7 +254,7 @@ impl EnclaveCertVerifier {
                 return Err(EnclaveCertVerifierError::MeasurementMismatch);
             }
 
-            // SVN verification: https://github.com/crypto-com/chain-docs/blob/master/docs/modules/tdbe.md#svn-verification--compilation-order
+            // SVN verification: https://github.com/crypto-com/thaler-docs/blob/master/docs/modules/tdbe.md#svn-verification--compilation-order
             match (
                 enclave_info.isv_svn,
                 enclave_info.mr_enclave,

@@ -14,11 +14,11 @@ pub struct AttestationEvidence {
 
 impl AttestationEvidence {
     /// Creates attestation evidence from quote
-    pub fn from_quote(quote: &[u8]) -> Self {
+    pub fn from_quote(quote: &[u8], nonce: Option<String>) -> Self {
         Self {
             isv_enclave_quote: base64::encode(quote),
             pse_manifest: None,
-            nonce: None,
+            nonce,
         }
     }
 }

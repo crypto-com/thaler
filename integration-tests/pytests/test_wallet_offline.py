@@ -11,7 +11,7 @@ rpc = get_rpc()
 
 # TODO:it strange that python can not read client-cli output, so deadcode the information
 # ./client-cli wallet auth-token -n ${wallet_name}
-enckey_offline = "3504eaa586fb548261613c7d9a4dfbadcb52ae26aff3c7e2b9ad88f03db7ee93"
+enckey_offline = "fec8b28ccebd71c6ce6ab342fbe0ca6e6b8a79efc4ad82e78726bea0144368de"
 # ./client-cli address new -n ${wallet_name} -t transfer
 transfer_address_offline = "dcro1kxl8xy6k8twhes6j972mrzurfvgms0e549z852cgqyl796jss89sadlmgd"
 # ./client-cli address list-pub-key -n ${wallet_name} -t transfer

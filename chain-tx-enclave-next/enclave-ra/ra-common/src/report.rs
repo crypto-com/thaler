@@ -72,7 +72,7 @@ impl AttestationReportBody {
     /// Returns quote in attestation report body
     pub fn get_quote(&self) -> Result<Quote, QuoteParsingError> {
         let quote_bytes = base64::decode(&self.isv_enclave_quote_body)?;
-        Quote::try_copy_from(&quote_bytes).ok_or_else(|| QuoteParsingError::InvalidQuoteStructure)
+        Quote::try_copy_from(&quote_bytes).ok_or(QuoteParsingError::InvalidQuoteStructure)
     }
 }
 

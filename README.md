@@ -1,14 +1,4 @@
-<br />
-<p align="center">
-  <img src="./assets/logo.svg" alt="Crypto.com Chain" width="400">
-</p>
-<br />
-
-<p align="center">
-  <a href="https://travis-ci.org/crypto-com/chain"><img label="Build Status" src="https://travis-ci.org/crypto-com/chain.svg?branch=master" /></a>
-  <a href="https://codecov.io/gh/crypto-com/chain"><img label="Code Coverage" src="https://codecov.io/gh/crypto-com/chain/branch/master/graph/badge.svg" /></a>
-  <a href="https://gitter.im/crypto-com/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge"><img label="Gitter" src="https://badges.gitter.im/crypto-com/community.svg" /></a>
-</p>
+# DEVELOPMENT MOVED TO: https://github.com/crypto-org-chain/chain-main
 
 ## Table of Contents
 
@@ -24,13 +14,13 @@
 6. [Start a Local Full Node](#start-local-full-node)
 7. [Send your First Transaction](#send-first-transaction)
 8. [Testing](#testing)
-9. [Useful LInks](#useful-links)
+9. [Useful Links](#useful-links)
 
 <a id="description" />
 
 ## 1. Description
 
-This repository contains the pre-alpha version prototype implementation of Crypto.com Chain. The current repository consists of the following Rust sub-crates:
+This repository contains the Thaler Experimental Network code (pre-pivoted Crypto.com Chain). The current repository consists of the following Rust sub-crates:
 
 * *chain-abci*: the Tendermint ABCI application that currently does the transaction validation etc.
 * *chain-core*: the library that contains the main type definitions and any utility code (such as serialization), so that it can be used in *chain-abci* and other applications.
@@ -64,7 +54,7 @@ and the [contributing guidelines](CONTRIBUTING.md) when submitting code.
 
 ## 4. Documentation
 
-Technical documentation can be found in this [Github repository](https://github.com/crypto-com/chain-docs) (you can read it in [this hosted version](https://crypto-com.github.io)).
+Technical documentation can be found in this [Github repository](https://github.com/crypto-com/thaler-docs) (you can read it in [this hosted version](https://thaler-testnet.crypto.com/docs/getting-started/).
 
 <a id="build" />
 
@@ -159,13 +149,13 @@ TODO
 
 ## 6. Start a Local Full Node
 
-Please follow the [instruction](https://crypto-com.github.io/getting-started/local_full_node_development.html) to deploy a local full node.
+Please follow the [instruction](https://thaler-testnet.crypto.com/docs/getting-started/local-devnet.html) to deploy a local full node.
 
 <a id="send-first-transaction" />
 
 ## 7. Send Your First Transaction
 
-Kindly refer to this [instruction](https://crypto-com.github.io/getting-started/send_your_first_transaction.html#send-your-first-transaction) to perform transactions between addresses.
+Kindly refer to this [instruction](https://thaler-testnet.crypto.com/docs/getting-started/local-devnet.html#send-your-first-transaction) to perform transactions between addresses.
 
 <a id="testing" />
 
@@ -185,7 +175,7 @@ $ drone exec --trusted \
     --include multinode-tests
 ```
 
-Kindly refer to [Prepare SPID & KEY](https://crypto-com.github.io/getting-started/#prepare-spid-key) to obtain the values of `SPID` and `IAS_API_KEY`. 
+Kindly refer to [Prepare SPID & KEY](https://thaler-testnet.crypto.com/docs/getting-started/local-devnet.html#prepare-spid-key) to obtain the values of `SPID` and `IAS_API_KEY`. 
 
 ---
 
@@ -193,7 +183,7 @@ Kindly refer to [Prepare SPID & KEY](https://crypto-com.github.io/getting-starte
 
 ## 9. Useful links
 
-* [Project Website](http://crypto.com/chain)
-* [Technical Documentation](https://crypto-com.github.io)
+* [Project Website](https://thaler-testnet.crypto.com/)
+* [Technical Documentation](https://thaler-testnet.crypto.com/docs/)
 * Community chatrooms (non-technical): [Discord](https://discord.gg/nsp9JTC) [Telegram](https://t.me/CryptoComOfficial)
 * Developer community chatroom (technical): [![Gitter](https://badges.gitter.im/crypto-com/community.svg)](https://gitter.im/crypto-com/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)

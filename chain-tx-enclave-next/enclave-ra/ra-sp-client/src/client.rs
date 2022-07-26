@@ -32,7 +32,7 @@ impl SpRaClient {
             .into_iter()
             .next()
             .transpose()?
-            .ok_or_else(|| SpRaClientError::NoResponse)?;
+            .ok_or(SpRaClientError::NoResponse)?;
 
         match response {
             Response::GetTargetInfo { target_info } => Ok(target_info),
@@ -53,7 +53,7 @@ impl SpRaClient {
             .into_iter()
             .next()
             .transpose()?
-            .ok_or_else(|| SpRaClientError::NoResponse)?;
+            .ok_or(SpRaClientError::NoResponse)?;
 
         match response {
             Response::GetQuote { quote_result } => Ok(quote_result),
@@ -65,15 +65,16 @@ impl SpRaClient {
     pub fn get_attestation_report(
         &self,
         quote: Vec<u8>,
+        ias_nonce: String,
     ) -> Result<AttestationReport, SpRaClientError> {
-        let request = Request::GetAttestationReport { quote };
+        let request = Request::GetAttestationReport { quote, ias_nonce };
         serde_json::to_writer(&self.stream, &request)?;
 
         let response: Response = serde_json::Deserializer::from_reader(&self.stream)
             .into_iter()
             .next()
             .transpose()?
-            .ok_or_else(|| SpRaClientError::NoResponse)?;
+            .ok_or(SpRaClientError::NoResponse)?;
 
         match response {
             Response::GetAttestationReport { attestation_report } => Ok(attestation_report),
@@ -92,4 +93,6 @@ pub enum SpRaClientError {
     NoResponse,
     #[error("Unexpected response: {0:?}")]
     UnexpectedResponse(Response),
+    #[error("{0}")]
+    Nonce(String),
 }

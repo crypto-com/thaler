@@ -1,4 +1,4 @@
-# Crypto.com Chain Client (client-core)
+# Thaler Experimental Network Client (client-core)
 
 This crate provides `WalletClient` trait which is responsible for interacting with transaction index and provide
 following functionalities on per-wallet basis:
@@ -29,7 +29,7 @@ This trait declares APIs for accessing various functionalities for a wallet:
 unspent transaction selection.
 
 Besides above functions, `WalletClient` also exposes `sync()` and `sync_all()` functions which are used to synchronize
-transaction index with Crypto.com Chain. This synchronization mechanism is subject to change. Currently, a default 
+transaction index with Thaler Experimental Network. This synchronization mechanism is subject to change. Currently, a default 
 implementation (`DefaultWalletClient`) of `WalletClient` is provided.
 
 ### Services

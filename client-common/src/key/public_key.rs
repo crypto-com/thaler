@@ -12,7 +12,7 @@ use chain_core::tx::witness::tree::RawXOnlyPubkey;
 
 use crate::{Error, ErrorKind, Result, ResultExt};
 
-/// Public key used in Crypto.com Chain
+/// Public key used in Thaler Experimental Network
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Hash)]
 pub struct PublicKey(SecpPublicKey);
 
