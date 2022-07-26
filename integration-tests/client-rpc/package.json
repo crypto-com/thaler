@@ -20,7 +20,7 @@
     "bignumber.js": "^8.1.1",
     "chai": "^4.2.0",
     "chai-as-promised": "^7.1.1",
-    "json-bigint": "^0.3.0",
+    "json-bigint": "^1.0.0",
     "lossless-json": "^1.0.3",
     "mocha": "^7.1.1",
     "sinon": "^7.3.2",
