@@ -2,7 +2,7 @@
 
 #! adapted from https://github.com/v1shwa/random-port-generator (random-port-generator)
 #! Copyright (c) 2017, Vishwa (licensed under the MIT License)
-#! Modifications Copyright (c) 2018 - 2020, Foris Limited (licensed under the Apache License, Version 2.0)
+#! Modifications Copyright (c) 2018-2020 Crypto.com (licensed under the Apache License, Version 2.0)
 
 # MIT License
 

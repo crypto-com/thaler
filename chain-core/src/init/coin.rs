@@ -1,7 +1,7 @@
 //! # Value with associated properties (e.g. min/max bounds)
 //! adapted from https://github.com/input-output-hk/rust-cardano (Cardano Rust)
 //! Copyright (c) 2018, Input Output HK (licensed under the MIT License)
-//! Modifications Copyright (c) 2018 - 2020, Foris Limited (licensed under the Apache License, Version 2.0)
+//! Modifications Copyright (c) 2018-2020 Crypto.com (licensed under the Apache License, Version 2.0)
 
 use crate::init::config::SlashRatio;
 use crate::init::{MAX_COIN, MAX_COIN_DECIMALS, MAX_COIN_UNITS};

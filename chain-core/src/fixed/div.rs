@@ -1,6 +1,6 @@
 // adapted from https://gitlab.com/tspiteri/fixed
 // Copyright © 2018–2020 Trevor Spiteri (licensed under the Apache License, Version 2.0)
-// Modifications Copyright (c) 2018 - 2020, Foris Limited (licensed under the Apache License, Version 2.0)
+// Modifications Copyright (c) 2018-2020 Crypto.com (licensed under the Apache License, Version 2.0)
 
 use core::ops;
 
