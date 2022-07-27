@@ -1,7 +1,7 @@
 //! # Eth-style Bloom Filter
 //! adapted from https://github.com/ETCDEVTeam/etcommon-rs (Etcommon)
 //! Copyright (c) 2018, ETCDEV (licensed under the Apache License, Version 2.0)
-//! Modifications Copyright (c) 2019-2020, Foris Limited (licensed under the Apache License, Version 2.0)
+//! Modifications Copyright (c) 2019-2020 Crypto.com (licensed under the Apache License, Version 2.0)
 //!
 //! ## Ethereum Bloom filter for Logs as described in the yellow paper
 //! "a specialised Bloom filter that sets three bits out of 2048,
